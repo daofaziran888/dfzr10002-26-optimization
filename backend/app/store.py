@@ -14,6 +14,9 @@ class Store:
         self._tables: dict[str, list[dict[str, Any]]] = {
             name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
         }
+        # 每个模块一份数据代际：数据每次被刷新（刷新动作、新增、修改）就推进一代，
+        # 导出快照键里带着代际号，代际一变旧快照自然失效。
+        self._generations: dict[str, int] = {}
 
     def module_names(self) -> list[str]:
         return sorted(self._tables)
@@ -26,6 +29,15 @@ class Store:
             if int(row.get("id", 0)) == entry_id:
                 return row
         return None
+
+    def generation(self, module: str) -> int:
+        """模块当前的数据代际，从第 1 代开始。"""
+        return self._generations.get(module, 1)
+
+    def bump(self, module: str) -> int:
+        """把模块数据推进到下一代，返回新的代际号。"""
+        self._generations[module] = self.generation(module) + 1
+        return self._generations[module]
 
     def overview(self) -> dict[str, object]:
         modules: list[dict[str, object]] = []

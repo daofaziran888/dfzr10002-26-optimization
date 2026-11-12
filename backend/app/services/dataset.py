@@ -1,8 +1,10 @@
 """分析数据集业务规则：状态流转、字段校验与筛选口径都收在这里。"""
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
+from app.services.export_snapshot import snapshots
 from app.store import store
 
 MODULE = "dataset"
@@ -10,6 +12,7 @@ REQUIRED_FIELDS = ["数据集编号", "数据集名称", "来源表名"]
 STATUS_ORDER = ["草稿", "待校验", "已启用", "已停用"]
 ACTION_RULES = {"提交校验": "待校验", "启用配置": "已启用", "停用配置": "已停用"}
 NEGATIVE_ACTIONS = ["停用配置"]
+REFRESH_ACTION = "刷新数据"
 
 
 class DatasetService:
@@ -44,12 +47,20 @@ class DatasetService:
         entry["pending"] = True
         entry["abnormal"] = False
         rows.append(entry)
+        # 数据集模块的数据变了：依赖它的导出快照同步失效
+        snapshots.data_refreshed(MODULE, "分析数据集新增了数据，旧快照已失效")
         return entry, []
 
     def run_action(self, entry_id: int, action: str) -> tuple[dict[str, Any] | None, str]:
         entry = store.find(MODULE, entry_id)
         if entry is None:
             return None, f"数据集 {entry_id} 不存在或已归档"
+        if action == REFRESH_ACTION:
+            # 数据刷新 = 模块数据推进一代：依赖本模块的导出快照全部失效，
+            # 旧代际的文件不能继续下载，新一代的导出会重新构建快照。
+            entry["最近刷新"] = date.today().isoformat()
+            generation = snapshots.data_refreshed(MODULE)
+            return entry, f"数据集已刷新到第 {generation} 代，旧导出快照已失效"
         if action not in ACTION_RULES:
             return None, f"动作「{action}」不属于分析数据集可执行范围"
         target = ACTION_RULES[action]

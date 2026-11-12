@@ -41,12 +41,37 @@ const stats = [
 
 type Row = Record<string, string | number | null>
 
+type ExportSnapshot = {
+  快照键: string
+  模板编号: string
+  字段选择: string[]
+  导出格式: string
+  结果范围: { start: number; end: number }
+  导出上限: number
+  导出状态: string
+  缓存状态: string
+}
+
 export default function DashboardView() {
   const [rows, setRows] = useState<Row[]>([])
   const [total, setTotal] = useState(0)
   const [errorMessage, setErrorMessage] = useState('')
   const [filters, setFilters] = useState<Record<string, string>>({})
+  const [snapshots, setSnapshots] = useState<ExportSnapshot[]>([])
   const filterFields = useMemo(() => columns.slice(0, 3), [])
+
+  const reloadSnapshots = useCallback(async () => {
+    try {
+      const response = await request('/api/export/snapshots')
+      if (!response.ok) {
+        throw new Error('导出快照读取失败')
+      }
+      const payload = await response.json()
+      setSnapshots(payload.items ?? [])
+    } catch {
+      setSnapshots([])
+    }
+  }, [])
 
   const reload = useCallback(async () => {
     setErrorMessage('')
@@ -67,6 +92,10 @@ export default function DashboardView() {
   useEffect(() => {
     void reload()
   }, [reload])
+
+  useEffect(() => {
+    void reloadSnapshots()
+  }, [reloadSnapshots])
 
   async function runAction(action: string, row: Row) {
     setErrorMessage('')
@@ -152,6 +181,48 @@ export default function DashboardView() {
           )}
         </tbody>
       </table>
+
+      <section className="preview-panel">
+        <div className="preview-head">
+          <h3>导出快照预览（数据导出配置的当前缓存状态）</h3>
+          <button className="btn ghost" type="button" onClick={() => void reloadSnapshots()}>刷新</button>
+        </div>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>模板编号</th>
+              <th>字段选择</th>
+              <th>导出格式</th>
+              <th>结果范围</th>
+              <th>导出上限</th>
+              <th>导出状态</th>
+              <th>缓存状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            {snapshots.map((snapshot) => (
+              <tr key={snapshot.快照键}>
+                <td>{snapshot.模板编号}</td>
+                <td>{snapshot.字段选择.join(' → ')}</td>
+                <td>{snapshot.导出格式}</td>
+                <td>第 {snapshot.结果范围.start}–{snapshot.结果范围.end} 行</td>
+                <td>{snapshot.导出上限} 行</td>
+                <td>{snapshot.导出状态}</td>
+                <td>
+                  <strong className={snapshot.缓存状态 === '有效' ? 'tag ok' : 'tag warn'}>
+                    {snapshot.缓存状态}
+                  </strong>
+                </td>
+              </tr>
+            ))}
+            {snapshots.length === 0 && (
+              <tr>
+                <td className="empty-state" colSpan={7}>暂无导出快照，到「数据导出配置」里执行一次下载即可生成</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
 
       <footer className="page-foot">
         <span>共 {total} 条数据看板记录</span>

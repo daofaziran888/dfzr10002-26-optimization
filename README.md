@@ -73,5 +73,20 @@ npm run dev
 - 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
 
+## 导出快照
+
+数据导出配置的下载结果按快照缓存，规则集中在 `backend/app/services/export_snapshot.py`：
+
+- **快照键**：由模板编号、数据源绑定、字段选择（含先后关系）、导出格式、筛选参数、
+  导出上限、超限策略与数据代际共同决定；同样配置永远命中同一份结果，重复下载复用同一快照。
+- **失效**：数据集「刷新数据」推进数据代际、模板停用、模板配置变更都会让旧快照失效，
+  按旧快照键下载返回 410；查询缓存管理的「缓存规则清单」（`GET /api/cache/rules`）随失效同步更新。
+- **超限策略**：结果行数达到导出上限时，「截断」只导出前 N 行，「拒绝」不生成文件并返回 422；
+  策略写入快照键，预览界面与文件内容一致。
+- **文件口径**：CSV 为 UTF-8 带 BOM，表头即所选字段；JSON 保留字段名到值的映射；
+  空字段在 CSV 里留空单元格、在 JSON 里为 null，不会串到下一列。
+- 相关接口：`GET /api/export/{id}/preview`（结果预览）、`GET /api/export/{id}/download`、
+  `GET /api/export/snapshots`（快照列表）、`GET /api/export/snapshots/{key}/download`。
+
 领域：数据工程
 子方向：数据分析与数据应用

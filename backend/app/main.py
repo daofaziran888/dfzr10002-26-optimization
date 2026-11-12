@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import ROUTERS
+from app.services.export_snapshot import snapshots
 from app.store import store
 
 app = FastAPI(title="数据分析工作台", version="1.0.0")
@@ -20,6 +21,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # 下载响应里的 X-Snapshot-* 头要暴露给浏览器，前端才能展示缓存命中情况
+    expose_headers=["*"],
 )
 
 for module in ROUTERS:
@@ -34,5 +37,7 @@ def health() -> dict[str, object]:
 
 @app.get("/api/overview")
 def overview() -> dict[str, object]:
-    """运营概览：把各业务模块的待处理量汇总成看板卡片。"""
-    return store.overview()
+    """运营概览：把各业务模块的待处理量汇总成看板卡片，并附上导出快照预览。"""
+    payload = store.overview()
+    payload["exportSnapshots"] = snapshots.overview()
+    return payload

@@ -1,4 +1,5 @@
-"""查询缓存管理接口：维护缓存规则，覆盖提交校验、启用配置、停用配置等动作。"""
+"""查询缓存管理接口：维护缓存规则，覆盖提交校验、启用配置、停用配置等动作，
+并对外提供导出快照的缓存规则清单（随快照失效同步更新）。"""
 from __future__ import annotations
 
 from typing import Any
@@ -7,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas import ActionResult, EntryPayload, PageResult
 from app.services.cache import CacheService
+from app.services.export_snapshot import snapshots
 
 router = APIRouter(prefix="/api/cache", tags=["查询缓存管理"])
 
@@ -14,6 +16,13 @@ service = CacheService()
 
 LIST_FIELDS = ["规则编号", "缓存目标", "缓存时间", "失效条件", "预加载设置", "内存上限", "淘汰策略", "是否启用"]
 STATUSES = ["草稿", "待校验", "已启用", "已停用"]
+
+
+@router.get("/rules")
+def list_snapshot_rules() -> dict[str, Any]:
+    """导出快照的缓存规则清单：由快照注册表实时投影，快照失效后这里同步更新。"""
+    items = snapshots.rules()
+    return {"module": "cache", "total": len(items), "items": items}
 
 
 @router.get("", response_model=PageResult[dict])

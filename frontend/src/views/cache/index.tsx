@@ -41,12 +41,39 @@ const stats = [
 
 type Row = Record<string, string | number | null>
 
+type SnapshotRule = {
+  规则编号: string
+  缓存目标: string
+  缓存时间: string
+  失效条件: string
+  淘汰策略: string
+  是否启用: string
+  快照键: string
+  数据代际: number
+  失效原因: string
+  命中次数: number
+}
+
 export default function CacheView() {
   const [rows, setRows] = useState<Row[]>([])
   const [total, setTotal] = useState(0)
   const [errorMessage, setErrorMessage] = useState('')
   const [filters, setFilters] = useState<Record<string, string>>({})
+  const [snapshotRules, setSnapshotRules] = useState<SnapshotRule[]>([])
   const filterFields = useMemo(() => columns.slice(0, 3), [])
+
+  const reloadRules = useCallback(async () => {
+    try {
+      const response = await request(`${ENDPOINT}/rules`)
+      if (!response.ok) {
+        throw new Error('导出快照缓存规则读取失败')
+      }
+      const payload = await response.json()
+      setSnapshotRules(payload.items ?? [])
+    } catch {
+      setSnapshotRules([])
+    }
+  }, [])
 
   const reload = useCallback(async () => {
     setErrorMessage('')
@@ -67,6 +94,10 @@ export default function CacheView() {
   useEffect(() => {
     void reload()
   }, [reload])
+
+  useEffect(() => {
+    void reloadRules()
+  }, [reloadRules])
 
   async function runAction(action: string, row: Row) {
     setErrorMessage('')
@@ -152,6 +183,52 @@ export default function CacheView() {
           )}
         </tbody>
       </table>
+
+      <section className="preview-panel">
+        <div className="preview-head">
+          <h3>导出快照缓存规则（快照失效后本清单同步更新）</h3>
+          <button className="btn ghost" type="button" onClick={() => void reloadRules()}>刷新清单</button>
+        </div>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>规则编号</th>
+              <th>缓存目标</th>
+              <th>快照键</th>
+              <th>数据代际</th>
+              <th>缓存时间</th>
+              <th>失效条件</th>
+              <th>命中次数</th>
+              <th>状态</th>
+              <th>失效原因</th>
+            </tr>
+          </thead>
+          <tbody>
+            {snapshotRules.map((rule) => (
+              <tr key={rule.快照键}>
+                <td>{rule.规则编号}</td>
+                <td>{rule.缓存目标}</td>
+                <td>{rule.快照键}</td>
+                <td>第 {rule.数据代际} 代</td>
+                <td>{rule.缓存时间}</td>
+                <td>{rule.失效条件}</td>
+                <td>{rule.命中次数}</td>
+                <td>
+                  <strong className={rule.是否启用 === '是' ? 'tag ok' : 'tag warn'}>
+                    {rule.是否启用 === '是' ? '有效' : '已失效'}
+                  </strong>
+                </td>
+                <td>{rule.失效原因 || '—'}</td>
+              </tr>
+            ))}
+            {snapshotRules.length === 0 && (
+              <tr>
+                <td className="empty-state" colSpan={9}>暂无导出快照，到「数据导出配置」里执行一次下载即可生成</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
 
       <footer className="page-foot">
         <span>共 {total} 条查询缓存管理记录</span>

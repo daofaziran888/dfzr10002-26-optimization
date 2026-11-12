@@ -16,7 +16,8 @@ const columns = [
 const actions = [
   "提交校验",
   "启用配置",
-  "停用配置"
+  "停用配置",
+  "刷新数据"
 ]
 const statuses = [
   "草稿",
@@ -45,6 +46,7 @@ export default function DatasetView() {
   const [rows, setRows] = useState<Row[]>([])
   const [total, setTotal] = useState(0)
   const [errorMessage, setErrorMessage] = useState('')
+  const [notice, setNotice] = useState('')
   const [filters, setFilters] = useState<Record<string, string>>({})
   const filterFields = useMemo(() => columns.slice(0, 3), [])
 
@@ -70,6 +72,7 @@ export default function DatasetView() {
 
   async function runAction(action: string, row: Row) {
     setErrorMessage('')
+    setNotice('')
     try {
       const response = await request(`${ENDPOINT}/${row.id}/actions`, {
         method: 'POST',
@@ -77,6 +80,10 @@ export default function DatasetView() {
       })
       if (!response.ok) {
         throw new Error('分析数据集动作未生效，请稍后重试')
+      }
+      const payload = await response.json()
+      if (payload?.message) {
+        setNotice(payload.message)
       }
       await reload()
     } catch (error) {
@@ -155,6 +162,7 @@ export default function DatasetView() {
 
       <footer className="page-foot">
         <span>共 {total} 条分析数据集记录</span>
+        {notice && <span className="notice-text">{notice}</span>}
         {errorMessage && <span className="error-text">{errorMessage}</span>}
       </footer>
     </section>
